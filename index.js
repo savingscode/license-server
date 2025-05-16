@@ -60,12 +60,12 @@ app.post("/validate", async (req, res) => {
 
     if (!alreadyUsed) {
       // Check if limit exceeded
-      if (license.deviceId.length >= 2) {
+      if (license.deviceId.length >= 1) {
         license.valid = false;
         await license.save();
         return res.status(403).json({
           success: false,
-          message: "License revoked: used on multipley devices.",
+          message: "License revoked: used on multiple devices.",
         });
       }
       license.deviceId.push(deviceId);
