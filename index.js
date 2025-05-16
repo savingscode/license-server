@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 // license-server.js (MongoDB Edition)
 const express = require("express");
 const cors = require("cors");
@@ -10,10 +12,18 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect("mongodb://localhost:27017/licenses", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+const DB_URL = process.env.DB_URL;
+mongoose
+  .connect(DB_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("✅ Connected to MongoDB");
+  })
+  .catch((err) => {
+    console.error("❌ Failed to connect to MongoDB:", err.message);
+  });
 
 // License Schema
 const licenseSchema = new mongoose.Schema({
@@ -23,10 +33,8 @@ const licenseSchema = new mongoose.Schema({
   deviceId: { type: [String], default: [] },
   lastUsed: { type: Date, default: null },
 });
-  
 
 const License = mongoose.model("License", licenseSchema);
-
 
 app.post("/validate", async (req, res) => {
   const { licenseKey, deviceId } = req.body;
@@ -72,13 +80,11 @@ app.post("/validate", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-  
-  
 
 // Generate License Endpoint
 app.post("/generate", async (req, res) => {
   const { email, licenseKey } = req.body;
-  console.log(email, licenseKey)
+  console.log(email, licenseKey);
 
   if (!email || !licenseKey) {
     return res.status(400).json({ success: false, message: "Missing fields" });
@@ -87,7 +93,9 @@ app.post("/generate", async (req, res) => {
   try {
     const existing = await License.findOne({ licenseKey });
     if (existing) {
-      return res.status(409).json({ success: false, message: "License already exists" });
+      return res
+        .status(409)
+        .json({ success: false, message: "License already exists" });
     }
 
     const newLicense = new License({ email, licenseKey });
@@ -102,48 +110,58 @@ app.post("/generate", async (req, res) => {
 
 // Admin: Summary stats
 app.get("/licenses/summary", async (req, res) => {
-    try {
-      const totalLicenses = await License.countDocuments();
-      const activeLicenses = await License.countDocuments({ valid: true });
-      const revokedLicenses = await License.countDocuments({ valid: false });
-  
-      res.json({
-        totalLicenses,
-        activeLicenses,
-        revokedLicenses,
-      });
-    } catch (err) {
-      res.status(500).json({ success: false, message: "Error generating summary" });
-    }
-  });
+  try {
+    const totalLicenses = await License.countDocuments();
+    const activeLicenses = await License.countDocuments({ valid: true });
+    const revokedLicenses = await License.countDocuments({ valid: false });
 
-  // Admin: Get all license data
+    res.json({
+      totalLicenses,
+      activeLicenses,
+      revokedLicenses,
+    });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, message: "Error generating summary" });
+  }
+});
+
+// Admin: Get all license data
 app.get("/licenses", async (req, res) => {
-    try {
-      const licenses = await License.find().sort({ lastUsed: -1 });
-      res.json(licenses);
-    } catch (err) {
-      res.status(500).json({ success: false, message: "Error fetching licenses" });
-    }
-  });
+  try {
+    const licenses = await License.find().sort({ lastUsed: -1 });
+    res.json(licenses);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching licenses" });
+  }
+});
 
-  // Admin: Revoke a license
+// Admin: Revoke a license
 app.post("/licenses/revoke", async (req, res) => {
   const { licenseKey } = req.body;
 
   if (!licenseKey) {
-    return res.status(400).json({ success: false, message: "Missing license key" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing license key" });
   }
 
   try {
     const license = await License.findOne({ licenseKey });
 
     if (!license) {
-      return res.status(404).json({ success: false, message: "License not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "License not found" });
     }
 
     if (!license.valid) {
-      return res.status(400).json({ success: false, message: "License is already revoked" });
+      return res
+        .status(400)
+        .json({ success: false, message: "License is already revoked" });
     }
 
     license.valid = false;
@@ -155,8 +173,6 @@ app.post("/licenses/revoke", async (req, res) => {
     res.status(500).json({ success: false, message: "Error revoking license" });
   }
 });
-
-  
 
 // Start server
 app.listen(PORT, () => {
