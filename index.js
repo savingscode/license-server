@@ -174,6 +174,37 @@ app.post("/licenses/revoke", async (req, res) => {
   }
 });
 
+// Admin: Reactivate a revoked license
+app.post("/licenses/reactivate", async (req, res) => {
+  const { licenseKey, resetDevices } = req.body;
+
+  if (!licenseKey) {
+    return res.status(400).json({ success: false, message: "Missing licenseKey" });
+  }
+
+  try {
+    const license = await License.findOne({ licenseKey });
+
+    if (!license) {
+      return res.status(404).json({ success: false, message: "License not found" });
+    }
+
+    license.valid = true;
+
+    // Optional: clear previous device bindings if resetDevices is true
+    if (resetDevices) {
+      license.deviceId = [];
+    }
+
+    await license.save();
+
+    res.json({ success: true, message: "License reactivated successfully" });
+  } catch (err) {
+    console.error("Reactivation error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`✅ License server running on http://localhost:${PORT}`);
