@@ -6,7 +6,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 
 const app = express();
-const PORT = 3000;
+const PORT = 4000;
 
 app.use(cors());
 app.use(express.json());
@@ -28,6 +28,7 @@ mongoose
 // License Schema
 const licenseSchema = new mongoose.Schema({
   licenseKey: { type: String, unique: true, required: true },
+  type: { type: String },
   email: { type: String, required: true },
   valid: { type: Boolean, default: true },
   deviceId: { type: [String], default: [] },
@@ -37,6 +38,9 @@ const licenseSchema = new mongoose.Schema({
 const License = mongoose.model("License", licenseSchema);
 
 app.post("/validate", async (req, res) => {
+  const type = req.query.type || "sender";
+  console.log(type);
+
   const { licenseKey, deviceId } = req.body;
 
   if (!licenseKey || !deviceId) {
@@ -50,6 +54,11 @@ app.post("/validate", async (req, res) => {
       return res
         .status(403)
         .json({ success: false, message: "Invalid license" });
+    }
+    if (license.type !== type) {
+      return res
+        .status(403)
+        .json({ success: false, message: "License type mismatch" });
     }
 
     if (!Array.isArray(license.deviceId)) {
@@ -83,7 +92,7 @@ app.post("/validate", async (req, res) => {
 
 // Generate License Endpoint
 app.post("/generate", async (req, res) => {
-  const { email, licenseKey } = req.body;
+  const { email, licenseKey, type } = req.body;
   console.log(email, licenseKey);
 
   if (!email || !licenseKey) {
@@ -98,8 +107,9 @@ app.post("/generate", async (req, res) => {
         .json({ success: false, message: "License already exists" });
     }
 
-    const newLicense = new License({ email, licenseKey });
+    const newLicense = new License({ email, licenseKey, type });
     await newLicense.save();
+    console.log(newLicense);
 
     res.json({ success: true, message: "License created" });
   } catch (err) {
@@ -128,14 +138,40 @@ app.get("/licenses/summary", async (req, res) => {
 });
 
 // Admin: Get all license data
-app.get("/licenses", async (req, res) => {
+app.get("/licenses/:type", async (req, res) => {
+  const { type } = req.params;
+  console.log(type);
   try {
-    const licenses = await License.find().sort({ lastUsed: -1 });
+    const licenses = await License.find({ type: type }).sort({ lastUsed: -1 });
     res.json(licenses);
   } catch (err) {
     res
       .status(500)
       .json({ success: false, message: "Error fetching licenses" });
+  }
+});
+
+// Admin: Delete a license
+app.post("/licenses/delete", async (req, res) => {
+  const { licenseKey } = req.body;
+
+  if (!licenseKey) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing license key" });
+  }
+
+  try {
+    const deleted = await License.findOneAndDelete({ licenseKey });
+    if (!deleted) {
+      return res
+        .status(404)
+        .json({ success: false, message: "License not found" });
+    }
+    res.json({ success: true, message: "License deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error deleting license" });
   }
 });
 
@@ -179,14 +215,18 @@ app.post("/licenses/reactivate", async (req, res) => {
   const { licenseKey, resetDevices } = req.body;
 
   if (!licenseKey) {
-    return res.status(400).json({ success: false, message: "Missing licenseKey" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing licenseKey" });
   }
 
   try {
     const license = await License.findOne({ licenseKey });
 
     if (!license) {
-      return res.status(404).json({ success: false, message: "License not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "License not found" });
     }
 
     license.valid = true;
@@ -202,6 +242,19 @@ app.post("/licenses/reactivate", async (req, res) => {
   } catch (err) {
     console.error("Reactivation error:", err);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.get("/", async (req, res) => {
+  try {
+    const all = await License.find();
+    for (var al of all) {
+      al.type = "sender";
+      al.save();
+      console.log("saved");
+    }
+  } catch (error) {
+    console.error(error);
   }
 });
 
