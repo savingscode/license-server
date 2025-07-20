@@ -56,6 +56,7 @@ app.post("/validate", async (req, res) => {
         .json({ success: false, message: "Invalid license" });
     }
     if (license.type !== type) {
+      console.log(license.type, type);
       return res
         .status(403)
         .json({ success: false, message: "License type mismatch" });
@@ -245,18 +246,7 @@ app.post("/licenses/reactivate", async (req, res) => {
   }
 });
 
-app.get("/", async (req, res) => {
-  try {
-    const all = await License.find();
-    for (var al of all) {
-      al.type = "sender";
-      al.save();
-      console.log("saved");
-    }
-  } catch (error) {
-    console.error(error);
-  }
-});
+
 
 // Start server
 app.listen(PORT, () => {
